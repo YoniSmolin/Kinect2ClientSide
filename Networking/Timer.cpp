@@ -16,7 +16,7 @@ void Timer::IterationStarted()
 		QueryPerformanceCounter(&_start); // first sample of the curernt window
 		if (_windowsCounter == 0)
 		{ // first sample of first samples windows
-			_firstIterationStart = _start;
+			QueryPerformanceCounter(&_firstIterationStart);
 		}
 	}
 

@@ -294,6 +294,9 @@ static bool runAndSave(const string& outputFilename,
 
 int main(int argc, char** argv)
 {
+
+#pragma region variable declaration
+
 	Size boardSize, imageSize;
 	float squareSize = 1.f, aspectRatio = 1.f;
 	Mat cameraMatrix, distCoeffs;
@@ -316,6 +319,10 @@ int main(int argc, char** argv)
 	vector<string> imageList;
 	Pattern pattern = CHESSBOARD;
 
+#pragma endregion
+
+#pragma region input parsing
+	
 	if (argc < 2)
 	{
 		help();
@@ -410,6 +417,8 @@ int main(int argc, char** argv)
 		else
 			return fprintf(stderr, "Unknown option %s", s), -1;
 	}
+
+#pragma endregion
 
 	if (inputFilename)
 	{
