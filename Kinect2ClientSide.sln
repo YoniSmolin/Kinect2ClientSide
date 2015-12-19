@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Networking", "Networking\Ne
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageListCreator", "ImageListCreator\ImageListCreator.vcxproj", "{18BF421D-A48D-48CF-8546-3073C71B6894}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ExtrinsicCalibration", "ExtrinsicCalibration\ExtrinsicCalibration.vcxproj", "{61AD5D10-5903-4918-8473-8A57CA85E6C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -41,6 +43,14 @@ Global
 		{18BF421D-A48D-48CF-8546-3073C71B6894}.Release|x64.Build.0 = Release|x64
 		{18BF421D-A48D-48CF-8546-3073C71B6894}.Release|x86.ActiveCfg = Release|Win32
 		{18BF421D-A48D-48CF-8546-3073C71B6894}.Release|x86.Build.0 = Release|Win32
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Debug|x64.ActiveCfg = Debug|x64
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Debug|x64.Build.0 = Debug|x64
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Debug|x86.ActiveCfg = Debug|Win32
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Debug|x86.Build.0 = Debug|Win32
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Release|x64.ActiveCfg = Release|x64
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Release|x64.Build.0 = Release|x64
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Release|x86.ActiveCfg = Release|Win32
+		{61AD5D10-5903-4918-8473-8A57CA85E6C5}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
