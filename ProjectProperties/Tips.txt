@@ -1,0 +1,8 @@
+1. For networking on windows, you need to link to the following library: ws2_32.lib.
+2. Don't forget to copy over all the dll's you're using to the bin directory (can be done in a post-build event), like so:
+    <PostBuildEvent>
+      <Command>copy "$(OPENCV_X86)\bin\opencv_world300.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
+   For debug configuration - don't forget to add a 'd' at the end of the dll name
+3. An example of setting an environment variable: (type in an administrator cmd window)
+	setx -m OPENCV_X86 D:\OpenCV\Build\x86\vc12
