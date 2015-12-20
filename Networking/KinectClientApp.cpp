@@ -16,16 +16,21 @@ using namespace cv;
 #define SERVER_NAME_HEADER "JetsonBoard" // JetsonBoardi.local where i stands for the index of the board (written with red Sharpie on the board itself)
 #define SERVER_NAME_TAIL   ".local"
 
-#define RECORDING_DIRECTORY "../Recordings/" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
-#define TIME_BETWEEN_SHOTS 5 // seconds to wait until the consecutive frame should be saved
+#define RECORDING_DIRECTORY "../Data/" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
+#define FRAMES_BETWEEN_SHOTS 300 // frames to wait until the consecutive frame should be saved
 
 #define FRAMES_BETWEEN_TELEMETRY_MESSAGES 30 // every so many frames, the average FPS and BW will be printed to the command window
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
+#pragma region Globals
+
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
 bool FastestThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
 bool Recording = false; // a flag to signify whether the incoming depth streams neet to be recorded
+long* frameCount = NULL; // points to an array that holds one entry per server (which counts how many frames has this server sent)
+
+#pragma endregion
 
 unsigned __stdcall KinectClientThreadFunction(void* kinectIndex); // implemented below
 
@@ -147,6 +152,9 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 		CreateDirectoryA(recordingDir.c_str(), NULL);
 	}
 
+	unsigned int frameCount = 0;
+	unsigned int savedFrameCount = 0;
+
 	while (1)
 	{
 		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
@@ -157,6 +165,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 		telemetry.IterationStarted();
 
 		auto packet = client.ReceivePacket(); // after it is received the matrix is stored internally in the client object
+		frameCount++;
 
 		if (packet.size() == 0)
 		{
@@ -172,9 +181,8 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 			int pressedKey = waitKey(1);
 
 			if (Recording)
-			{
-				static unsigned int savedFrameCount = 1;
-				if (pressedKey == 32) //(savedFrameCount * TIME_BETWEEN_SHOTS < telemetry.TimeSinceFirstIteration())
+			{				
+				if (savedFrameCount * FRAMES_BETWEEN_SHOTS < frameCount) //(pressedKey == 32) // 32 is the spacebar //
 				{
 					string fileType;
 					if (channelProperties->ChannelType == Networking::ChannelType::Color)
@@ -182,6 +190,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 					else
 						fileType = ".png";
 					imwrite(recordingDir + string("/") + to_string(savedFrameCount) + fileType, lastFrame); // saving the correct depth values
+					cout << "~~~~~~~~~~~~~~~~~~~~ Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
 					savedFrameCount++;
 				}
 			}
