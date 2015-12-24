@@ -9,8 +9,8 @@ namespace Networking
 		case ChannelType::Color:
 			Height = 1080;
 			Width = 1920;
-			PixelType = CV_8UC4;
-			PixelSize = 4;
+			PixelType = CV_8UC3; // compressed without the alpha
+			PixelSize = 3;
 			break;
 		case ChannelType::Depth:
 			Height = 424;
