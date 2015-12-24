@@ -199,7 +199,9 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 						fileType = ".jpg";
 					else
 						fileType = ".png";
-					imwrite(recordingDir + string("/") + to_string(savedFrameCount) + fileType, lastFrame); // saving the correct depth values
+					char savedFrameCountString[10];
+					sprintf(savedFrameCountString, "%02d", savedFrameCount); // assuming savedFrameCount < 100, 2 digits should be enough
+					imwrite(recordingDir + string("/") + string(savedFrameCountString) + fileType, lastFrame); // saving the correct depth values
 					cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << clientIndex << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
 					savedFrameCount++;
 				}
