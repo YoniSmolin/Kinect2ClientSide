@@ -17,7 +17,7 @@ using namespace cv;
 #define SERVER_NAME_TAIL   ".local"
 
 #define RECORDING_DIRECTORY "../Data/" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
-#define FRAMES_BETWEEN_SHOTS 300 // frames to wait until the consecutive frame should be saved
+#define FRAMES_BETWEEN_SHOTS 75 // frames to wait until the consecutive frame should be saved
 
 #define FRAMES_BETWEEN_TELEMETRY_MESSAGES 30 // every so many frames, the average FPS and BW will be printed to the command window
 
@@ -27,8 +27,8 @@ using namespace cv;
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
 bool FastestThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
-bool Recording = false; // a flag to signify whether the incoming depth streams neet to be recorded
-long* frameCount = NULL; // points to an array that holds one entry per server (which counts how many frames has this server sent)
+bool Recording = false; // a flag to signify whether the incoming streams neet to be recorded
+bool DisplayImage = false; // a glag to signify whether the incoming strems need to be displayed to screen
 
 #pragma endregion
 
@@ -38,22 +38,25 @@ int main(int argc, char** argv)
 {
 #pragma region process input arguments
 
-	if (argc > 3 || argc < 2)
+	if (argc > 4 || argc < 2)
 	{
 		cout << "usage: " << argv[0] << " n [-r]" << endl
 			<< "n - a mandatory parameter, specifies the number of clients to launch" << endl
-			<< "[-r] - an optinal flag that turns on recording" << endl;
+			<< "[-r] - an optinal flag that turns on recording" << endl
+			<< "[-di] - an optional flag do display the received image" << endl;
 		return 1;
 	}
 
 	int cameraCount = atoi(argv[1]);
 	if (cameraCount > 2) throw exception("Currently only supporting up to two cameras. Need to figure out a way to connect to the boards by their hostname in order to overcome this.");
 
-	Recording = (argc == 3 && _strcmpi(argv[2], "-r") == 0);
-	if (Recording)
+	for (int argIndex = 2; argIndex < argc; argIndex++)
 	{
-		CreateDirectoryA(RECORDING_DIRECTORY, NULL);
+		Recording = Recording || _strcmpi(argv[argIndex], "-r") == 0;
+		DisplayImage = DisplayImage || _strcmpi(argv[argIndex], "-di") == 0;
 	}
+
+	CreateDirectoryA(RECORDING_DIRECTORY, NULL);	
 
 #pragma endregion
 
@@ -142,7 +145,10 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 #pragma region main loop
 
 	string windowName = string("Client #") + string(clientIndex);
-	namedWindow(windowName); // OpenCV window to show the depth stream on screen
+	if (DisplayImage && index == 1)
+	{		
+		namedWindow(windowName); // OpenCV window to show the depth stream on screen
+	}
 
 	Timer telemetry(string("Kinect #") + string(clientIndex), FRAMES_BETWEEN_TELEMETRY_MESSAGES);
 
@@ -177,12 +183,16 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 			if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
 				lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame; 
 
-			imshow(windowName, lastFrame);
-			int pressedKey = waitKey(1);
+			
+			if (DisplayImage && index == 1)
+			{
+				imshow(windowName, lastFrame);
+				int pressedKey = waitKey(1);
+			}
 
 			if (Recording)
 			{				
-				if (savedFrameCount * FRAMES_BETWEEN_SHOTS < frameCount) //(pressedKey == 32) // 32 is the spacebar //
+				if (savedFrameCount * FRAMES_BETWEEN_SHOTS < frameCount) // (pressedKey == 32) // 32 is the spacebar // 
 				{
 					string fileType;
 					if (channelProperties->ChannelType == Networking::ChannelType::Color)
@@ -190,7 +200,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 					else
 						fileType = ".png";
 					imwrite(recordingDir + string("/") + to_string(savedFrameCount) + fileType, lastFrame); // saving the correct depth values
-					cout << "~~~~~~~~~~~~~~~~~~~~ Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
+					cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << clientIndex << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
 					savedFrameCount++;
 				}
 			}
