@@ -165,7 +165,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	{
 		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
 
-		if (FastestThreadFinished) // as soon as one thread is done, everybody's closing their basta
+		if (FastestThreadFinished) // as soon as one thread is done, everybody's closing their bastas
 			break;
 
 		telemetry.IterationStarted();
