@@ -6,9 +6,11 @@
 #include "Networking\Timer.h"  // telemetry class
 
 #include "Recording\FrameRecorder.h"
+#include "Recording\CalibrationPatternRecorder.h"
 
 #include <windows.h>  // multithreading
 #include <process.h>  // multithreading
+#include <memory>
 // don't forget to pick the correct multithreading runtime library in the Visual Studio project properties in order to get this code to compile
 
 using namespace std;
@@ -25,12 +27,17 @@ using namespace cv;
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
+#define CALIBRATION_FILE_PREFIX "ImagePoints" // the recorded calibration pattern will be saved into this file (the suffix is the index of the camera)
+
 #pragma region Globals
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
 bool FastestThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
-bool RecordImages = false; // a flag to signify whether the incoming streams neet to be recorded
-bool DisplayImage = false; // a glag to signify whether the incoming strems need to be displayed to screen
+bool RecordImages = false; // a flag to signify whether the incoming stream neet to be recorded (once every FRAMES_BETWEEN_SHOTS)
+bool DisplayImages = false; // a flag to signify whether the incoming strems need to be displayed to screen
+bool RecordCalibrationPattern = false; // a flag to signify whether the calibration pattern needs to be recorded (once every once every FRAMES_BETWEEN_SHOTS)
+bool PatternFound[2] = { false, false }; // two variables that indicate whether a calibration pattern was detected in the last frame
+unsigned int cameraCount; // currently, only 2 cameras are supported but in general this can be any number
 
 #pragma endregion
 
@@ -44,18 +51,20 @@ int main(int argc, char** argv)
 	{
 		cout << "usage: " << argv[0] << " n [-r]" << endl
 			<< "n - a mandatory parameter, specifies the number of clients to launch" << endl
-			<< "[-r] - an optinal flag that turns on recording" << endl
+			<< "[-ri] - an optinal flag that turns on image recording" << endl
+			<< "[-rc] - an optional flag that turns on calibration pattern recording" << endl
 			<< "[-di] - an optional flag do display the received image" << endl;
 		return 1;
 	}
 
-	int cameraCount = atoi(argv[1]);
+	cameraCount = atoi(argv[1]);
 	if (cameraCount > 2) throw exception("Currently only supporting up to two cameras. Need to figure out a way to connect to the boards by their hostname in order to overcome this.");
 
 	for (int argIndex = 2; argIndex < argc; argIndex++)
 	{
-		RecordImages = RecordImages || _strcmpi(argv[argIndex], "-r") == 0;
-		DisplayImage = DisplayImage || _strcmpi(argv[argIndex], "-di") == 0;
+		RecordImages = RecordImages || _strcmpi(argv[argIndex], "-ri") == 0;
+		DisplayImages = DisplayImages || _strcmpi(argv[argIndex], "-di") == 0;
+		RecordCalibrationPattern = RecordCalibrationPattern || _strcmpi(argv[argIndex], "-rc") == 0;
 	}
 
 	CreateDirectoryA(RECORDING_DIRECTORY, NULL);	
@@ -80,13 +89,13 @@ int main(int argc, char** argv)
 	HANDLE* handlesToThreads = new HANDLE[cameraCount];
 	int* threadIndices = new int[cameraCount];
 
-	for (int i = 0; i < cameraCount; i++)
+	for (unsigned int i = 0; i < cameraCount; i++)
 	{
 		threadIndices[i] = i + 1; // I don't like to enumerate stuff from 0, this enumaration should be consistend with the physical enumration of the devices (written in red)
 		handlesToThreads[i] = (HANDLE)_beginthreadex(NULL, 0, &KinectClientThreadFunction, &threadIndices[i], CREATE_SUSPENDED, NULL);
 	}
 
-	for (int i = 0; i < cameraCount; i++)
+	for (unsigned int i = 0; i < cameraCount; i++)
 	{
 		ResumeThread(handlesToThreads[i]);
 	}
@@ -95,7 +104,7 @@ int main(int argc, char** argv)
 
 #pragma region wait for threads to terminate
 
-	for (int i = 0; i < cameraCount; i++)
+	for (unsigned int i = 0; i < cameraCount; i++)
 	{
 		WaitForSingleObject(handlesToThreads[i], INFINITE);
 	}
@@ -147,15 +156,18 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 #pragma region main loop
 
 	string windowName = string("Client #") + string(clientIndex);
-	if (DisplayImage && index == 1)
+	if (DisplayImages && index == 1)
 	{		
 		namedWindow(windowName); // OpenCV window to show the image stream on screen
 	}
 
 	Timer telemetry(string("Kinect #") + string(clientIndex), FRAMES_BETWEEN_TELEMETRY_MESSAGES);
 
-	Recording::FrameRecorder* recorder = NULL;
-	if (RecordImages) recorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, index);
+	Recording::FrameRecorder* frameRecorder = NULL;
+	if (RecordImages) frameRecorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, index);
+
+	Recording::CalibrationPatternRecorder* calibrationRecorder = NULL;
+	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, index, CALIBRATION_FILE_PREFIX);
 
 	unsigned int frameCount = 0;
 	unsigned int savedFrameCount = 0;
@@ -164,8 +176,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	{
 		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
 
-		if (FastestThreadFinished) // as soon as one thread is done, everybody's closing their bastas
-			break;
+		if (FastestThreadFinished) break; // as soon as one thread is done, everybody's closing their bastas			
 
 		telemetry.IterationStarted();
 
@@ -178,18 +189,27 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 		}
 		else
 		{
-			auto lastFrame = packetProcessor.ProcessPacket(packet);
-			if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
-				lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame; 
+			auto lastFrame = packetProcessor.ProcessPacket(packet);		
 
-			
-			if (DisplayImage && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
+			if (RecordImages) frameRecorder->RecordFrame(lastFrame, frameCount);
+
+			if (RecordCalibrationPattern)
 			{
-				imshow(windowName, lastFrame);
-				int pressedKey = waitKey(1);
+				PatternFound[index] = calibrationRecorder->DetectCalibrationPattern(lastFrame, frameCount);
+				if (PatternFound[index])
+				{
+					EnterSynchronizationBarrier(barrier, 0); // this is wasteful in terms of time (even more so when recording images), but I don't care (only happens when we do calibration)
+					if (cameraCount == 1 || PatternFound[3 - index]) calibrationRecorder->RecordLastCalibrationPattern(); // '3 - index' is really crappy. This should not be hard-coded for a pair of cameras.
+				}
 			}
 
-			if (RecordImages) recorder->RecordFrame(lastFrame, frameCount);
+			if (DisplayImages && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
+			{
+				if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
+					lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame;
+				imshow(windowName, lastFrame);
+				waitKey(1);
+			}
 
 			telemetry.IterationEnded(packet.size());
 		}
@@ -201,7 +221,10 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 
 	client.CloseConnection();
 
-	printf("Average bandwidth for Kinect #%s on this session was: %2.1f [Mbps]\n", clientIndex, telemetry.AverageBandwidth());
+	printf("Average bandwidth for Kinect #%s on this session was: %2.1f [Mbps]\n", clientIndex, telemetry.AverageBandwidth());	
+
+	if (RecordImages) delete frameRecorder;
+	if (RecordCalibrationPattern) delete calibrationRecorder;
 
 	return 0;
 

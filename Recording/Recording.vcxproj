@@ -19,9 +19,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BaseRecorder.h" />
+    <ClInclude Include="CalibrationPatternRecorder.h" />
     <ClInclude Include="FrameRecorder.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CalibrationPatternRecorder.cpp" />
     <ClCompile Include="FrameRecorder.cpp" />
   </ItemGroup>
   <ItemGroup>

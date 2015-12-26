@@ -3,24 +3,21 @@
 #include <string>
 #include <opencv2/highgui/highgui.hpp>
 #include "Networking/ChannelProperties.h"
+#include "BaseRecorder.h"
 
 namespace Recording
 {
 	// does not manage any memory
-	class FrameRecorder
+	class FrameRecorder : public BaseRecorder
 	{
-		std::string _recordingDirectory;
-		const Networking::ChannelProperties* _channelProperties;
-		int _recordingCycle; // time in frames between two consecutive frame recordings
-		int _cameraIndex; // index of the camera associated with this recorder
+		const Networking::ChannelProperties* _channelProperties;		
 
 	public:
-		FrameRecorder(const std::string& recordingDirectory, const Networking::ChannelProperties* channelProperties, int recordingCycle, int cameraIndex);
+		FrameRecorder(const std::string& recordingDirectory, const Networking::ChannelProperties* channelProperties, unsigned int recordingCycle, unsigned int cameraIndex);
 
-		void RecordFrame(cv::Mat frame, int frameNumber);
+		void RecordFrame(cv::Mat frame, unsigned int frameNumber);
 
 	private:
-		int _savedFramesCount;
 		std::string _imageFileType;
 	};
 }
