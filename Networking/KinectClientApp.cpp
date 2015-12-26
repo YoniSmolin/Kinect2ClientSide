@@ -184,7 +184,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 				lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame; 
 
 			
-			if (DisplayImage && index == 1)
+			if (DisplayImage && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
 			{
 				imshow(windowName, lastFrame);
 				int pressedKey = waitKey(1);
@@ -203,6 +203,9 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 					sprintf(savedFrameCountString, "%02d", savedFrameCount); // assuming savedFrameCount < 100, 2 digits should be enough
 					imwrite(recordingDir + string("/") + string(savedFrameCountString) + fileType, lastFrame); // saving the correct depth values
 					cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << clientIndex << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
+					if (index == 1)
+						PlaySound(TEXT("../Data/CameraShot.wav"), NULL, SND_FILENAME|SND_ASYNC);
+
 					savedFrameCount++;
 				}
 			}
