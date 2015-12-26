@@ -1,9 +1,11 @@
-#include <opencv2/highgui/highgui.hpp>
+#include <opencv2\highgui\highgui.hpp>
 #include <iostream>
 
-#include "PacketClient.h" // networking class
-#include "NetworkPacketProcessor.h"
-#include "Timer.h"  // telemetry class
+#include "Networking\PacketClient.h" // networking class
+#include "Networking\NetworkPacketProcessor.h"
+#include "Networking\Timer.h"  // telemetry class
+
+#include "Recording\FrameRecorder.h"
 
 #include <windows.h>  // multithreading
 #include <process.h>  // multithreading
@@ -16,7 +18,7 @@ using namespace cv;
 #define SERVER_NAME_HEADER "JetsonBoard" // JetsonBoardi.local where i stands for the index of the board (written with red Sharpie on the board itself)
 #define SERVER_NAME_TAIL   ".local"
 
-#define RECORDING_DIRECTORY "../Data/" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
+#define RECORDING_DIRECTORY "../Data" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
 #define FRAMES_BETWEEN_SHOTS 75 // frames to wait until the consecutive frame should be saved
 
 #define FRAMES_BETWEEN_TELEMETRY_MESSAGES 30 // every so many frames, the average FPS and BW will be printed to the command window
@@ -27,7 +29,7 @@ using namespace cv;
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
 bool FastestThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
-bool Recording = false; // a flag to signify whether the incoming streams neet to be recorded
+bool RecordImages = false; // a flag to signify whether the incoming streams neet to be recorded
 bool DisplayImage = false; // a glag to signify whether the incoming strems need to be displayed to screen
 
 #pragma endregion
@@ -52,7 +54,7 @@ int main(int argc, char** argv)
 
 	for (int argIndex = 2; argIndex < argc; argIndex++)
 	{
-		Recording = Recording || _strcmpi(argv[argIndex], "-r") == 0;
+		RecordImages = RecordImages || _strcmpi(argv[argIndex], "-r") == 0;
 		DisplayImage = DisplayImage || _strcmpi(argv[argIndex], "-di") == 0;
 	}
 
@@ -147,16 +149,13 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	string windowName = string("Client #") + string(clientIndex);
 	if (DisplayImage && index == 1)
 	{		
-		namedWindow(windowName); // OpenCV window to show the depth stream on screen
+		namedWindow(windowName); // OpenCV window to show the image stream on screen
 	}
 
 	Timer telemetry(string("Kinect #") + string(clientIndex), FRAMES_BETWEEN_TELEMETRY_MESSAGES);
 
-	string recordingDir = RECORDING_DIRECTORY + string(clientIndex);
-	if (Recording)
-	{
-		CreateDirectoryA(recordingDir.c_str(), NULL);
-	}
+	Recording::FrameRecorder* recorder = NULL;
+	if (RecordImages) recorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, index);
 
 	unsigned int frameCount = 0;
 	unsigned int savedFrameCount = 0;
@@ -190,25 +189,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 				int pressedKey = waitKey(1);
 			}
 
-			if (Recording)
-			{				
-				if (savedFrameCount * FRAMES_BETWEEN_SHOTS < frameCount) // (pressedKey == 32) // 32 is the spacebar // 
-				{
-					string fileType;
-					if (channelProperties->ChannelType == Networking::ChannelType::Color)
-						fileType = ".jpg";
-					else
-						fileType = ".png";
-					char savedFrameCountString[10];
-					sprintf(savedFrameCountString, "%02d", savedFrameCount); // assuming savedFrameCount < 100, 2 digits should be enough
-					imwrite(recordingDir + string("/") + string(savedFrameCountString) + fileType, lastFrame); // saving the correct depth values
-					cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << clientIndex << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << endl;
-					if (index == 1)
-						PlaySound(TEXT("../Data/CameraShot.wav"), NULL, SND_FILENAME|SND_ASYNC);
-
-					savedFrameCount++;
-				}
-			}
+			if (RecordImages) recorder->RecordFrame(lastFrame, frameCount);
 
 			telemetry.IterationEnded(packet.size());
 		}
