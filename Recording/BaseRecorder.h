@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 
-#define CAMERA_SHUTTER_AUDIO_FILE "../Data/CameraShot.wav"
+#define CAMERA_SHUTTER_AUDIO_FILE "../Sounds/CameraShot.wav"
 
 namespace Recording
 {
