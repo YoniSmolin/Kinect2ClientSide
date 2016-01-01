@@ -14,7 +14,7 @@ namespace Recording
 		cv::FileStorage _patternCornersFile;
 
 	public:
-		CalibrationPatternRecorder(unsigned int recordingCycle, unsigned int cameraIndex, const std::string& fileNamePrefix);
+		CalibrationPatternRecorder(unsigned int recordingCycle, unsigned int cameraIndex, const std::string& recordingPath);
 		~CalibrationPatternRecorder();
 
 		bool DetectCalibrationPattern(cv::Mat frame, unsigned int frameNumber);

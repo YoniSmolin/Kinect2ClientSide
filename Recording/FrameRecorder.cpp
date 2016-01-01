@@ -29,7 +29,7 @@ namespace Recording
 			std::cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << _cameraIndex << ": Taking a shot ("  << fileName << ") ~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
 			if (_cameraIndex == 1)
-				PlaySound(TEXT(CAMERA_SHUTTER_AUDIO_FILE), NULL, SND_FILENAME | SND_ASYNC); // SND_ASYNC is important, otherwise this call will block
+				PlaySound(CameraShutterAudioFile.c_str(), NULL, SND_FILENAME | SND_ASYNC); // SND_ASYNC is important, otherwise this call will block
 
 			_savedFramesCount++;
 		}

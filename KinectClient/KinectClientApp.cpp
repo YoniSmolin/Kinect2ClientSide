@@ -27,8 +27,6 @@ using namespace cv;
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
-#define CALIBRATION_FILE_PREFIX "ImagePoints" // the recorded calibration pattern will be saved into this file (the suffix is the index of the camera)
-
 #pragma region Globals
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
@@ -167,7 +165,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	if (RecordImages) frameRecorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, index);
 
 	Recording::CalibrationPatternRecorder* calibrationRecorder = NULL;
-	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, index, CALIBRATION_FILE_PREFIX);
+	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, index, RECORDING_DIRECTORY);
 
 	unsigned int frameCount = 0;
 	unsigned int savedFrameCount = 0;

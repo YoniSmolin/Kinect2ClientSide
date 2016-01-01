@@ -1,10 +1,10 @@
 #pragma once
 #include <string>
 
-#define CAMERA_SHUTTER_AUDIO_FILE "../Sounds/CameraShot.wav"
-
 namespace Recording
 {
+	const std::wstring CameraShutterAudioFile(L"../Sounds/CameraShot.wav"); // all of those "magic strings" should be externalized, but for now this will do
+
 	class BaseRecorder
 	{
 	protected:
