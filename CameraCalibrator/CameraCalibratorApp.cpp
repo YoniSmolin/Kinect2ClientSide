@@ -9,8 +9,8 @@
 #define NUMBER_OF_CAMERAS 2
 
 #define CALIBRATION_PATTERN_WIDTH  6  // its super-important that those will agree with the widh and height in CalibrationPatternRecorder.cpp. Those constants should be organized in a common header.
-#define CALIBRATION_PATTERN_HEIGHT 9
-#define CALIBRATION_PATTERN_SQUARE_SIZE 2.5f // cm
+#define CALIBRATION_PATTERN_HEIGHT 8
+#define CALIBRATION_PATTERN_SQUARE_SIZE 2.65f // cm
 
 #define IMAGE_WIDTH   1920
 #define IMAGE_HEIGHT  1080
@@ -67,12 +67,12 @@ int main()
 
 	for (int camera = 0; camera < NUMBER_OF_CAMERAS; camera++)
 	{
-		intrinsicCalibrationReprojectionRmsError[camera] = calibrateCamera(calibrationCoordinatesImagePlane[camera], calibrationCoordinatesObjectSpace, 
+		intrinsicCalibrationReprojectionRmsError[camera] = calibrateCamera(calibrationCoordinatesObjectSpace, calibrationCoordinatesImagePlane[camera],
 			imageSize, cameraMatrix[camera], distortionCoeffs[camera], dummy1, dummy2, flags);
 		if (!checkRange(cameraMatrix[camera]) || !checkRange(distortionCoeffs[camera]))
 			throw std::runtime_error("Camera matrix or distortion coefficient vector have out-of-range entries");
 		
-		std::cout << "Intrinsic calibration reprojection error for camera " << camera << " is: " << intrinsicCalibrationReprojectionRmsError[camera] << std::endl;
+		std::cout << "Intrinsic calibration reprojection error for camera " << camera + 1 << " is: " << intrinsicCalibrationReprojectionRmsError[camera] << std::endl;
 	}
 
 	#pragma endregion
@@ -85,7 +85,7 @@ int main()
 	cv::Mat R, T;
 
 	double extrinsicCalibrationReprojectionRmsError = stereoCalibrate(calibrationCoordinatesObjectSpace, calibrationCoordinatesImagePlane[0], calibrationCoordinatesImagePlane[1],
-		cameraMatrix[0], distortionCoeffs[0], cameraMatrix[1], distortionCoeffs[1], imageSize, R, T, dummy1, dummy2, flags, 
+		cameraMatrix[0], distortionCoeffs[0], cameraMatrix[1], distortionCoeffs[1], imageSize, R, T, dummy1[0], dummy2[0], flags, 
 		cv::TermCriteria(cv::TermCriteria::COUNT, 30, 0));
 
 	std::cout << "Extrinsic calibration reprojection error is: " << extrinsicCalibrationReprojectionRmsError << std::endl;
