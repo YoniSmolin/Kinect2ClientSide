@@ -36,8 +36,6 @@ namespace Networking
 		totalReceived = waitUntilReceived((char*)&timestamp.Milliseconds, BytesInTimestampField);
 		if (totalReceived < BytesInTimestampField) return emptyPacket;
 
-		printf("Current time: %ld.%03ld seconds since the Epoch\n", timestamp.Seconds, timestamp.Milliseconds);
-
 		// receive header
 		uchar header[BytesInHeader];
 		totalReceived = waitUntilReceived((char*)header, BytesInHeader);

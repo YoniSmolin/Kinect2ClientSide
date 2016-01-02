@@ -11,7 +11,7 @@
 #include <windows.h>  // multithreading
 #include <process.h>  // multithreading
 #include <memory>
-#include <time.h>
+#include <math.h>
 // don't forget to pick the correct multithreading runtime library in the Visual Studio project properties in order to get this code to compile
 
 using namespace std;
@@ -28,15 +28,22 @@ using namespace cv;
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
+#define SYNCHRONIZATION_THRESHOLD 60 // frames with a time gap of less than or equal to SYNCHRONIZATION_THRESHOLD [ms] will be considered synchronized
+
+#define MAX_NUMBER_OF_CAMERAS 4
+
 #pragma region Globals
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
 bool FirstThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
+Networking::NetworkPacket Packets[MAX_NUMBER_OF_CAMERAS];
+bool DroppingFrame = false;
+
 bool RecordImages = false; // a flag to signify whether the incoming stream neet to be recorded (once every FRAMES_BETWEEN_SHOTS)
 bool DisplayImages = false; // a flag to signify whether the incoming strems need to be displayed to screen
 bool RecordCalibrationPattern = false; // a flag to signify whether the calibration pattern needs to be recorded (once every once every FRAMES_BETWEEN_SHOTS)
-bool PatternFound[2] = { false, false }; // two variables that indicate whether a calibration pattern was detected in the last frame
-unsigned int cameraCount; // currently, only 2 cameras are supported but in general this can be any number
+bool PatternFound[MAX_NUMBER_OF_CAMERAS] = { false, false }; // two variables that indicate whether a calibration pattern was detected in the last frame
+unsigned int cameraCount;
 
 #pragma endregion
 
@@ -57,7 +64,7 @@ int main(int argc, char** argv)
 	}
 
 	cameraCount = atoi(argv[1]);
-	if (cameraCount > 2) throw exception("Currently only supporting up to two cameras. Need to figure out a way to connect to the boards by their hostname in order to overcome this.");
+	if (cameraCount > MAX_NUMBER_OF_CAMERAS) throw runtime_error("Currently only supporting up to " + std::to_string(MAX_NUMBER_OF_CAMERAS) + " cameras. Need to figure out a way to connect to the boards by their hostname in order to overcome this.");
 
 	for (int argIndex = 2; argIndex < argc; argIndex++)
 	{
@@ -90,7 +97,7 @@ int main(int argc, char** argv)
 
 	for (unsigned int i = 0; i < cameraCount; i++)
 	{
-		threadIndices[i] = i + 1; // I don't like to enumerate stuff from 0, this enumaration should be consistend with the physical enumration of the devices (written in red)
+		threadIndices[i] = i; // thread index corresponds to the index of the Jetson board this thread will be talking to (but thread indices are zero-based)
 		handlesToThreads[i] = (HANDLE)_beginthreadex(NULL, 0, &KinectClientThreadFunction, &threadIndices[i], CREATE_SUSPENDED, NULL);
 	}
 
@@ -117,93 +124,127 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 {
 #pragma region initialize client object
 
-	int index = *((int*)kinectIndex);
-	char clientIndex[3];
+	int threadIndex = *((int*)kinectIndex);
+	char cameraNameString[3];
 
-	_itoa_s(index, clientIndex, 3, 10); // 10 is the radix
+	_itoa_s(threadIndex + 1, cameraNameString, 3, 10); // 10 is the radix, camera indices are 1-based
 
-	auto clientName = string(clientIndex);
-	Networking::PacketClient client(clientName);
-	cout << "Initialized client #" << clientIndex << " successfully" << endl; // not sure this printing is thread sage
+	Networking::PacketClient client(std::string("Client #") + cameraNameString);
+	cout << "Initialized client #" << cameraNameString << " successfully" << endl; // not sure this printing is thread sage
 
 #pragma endregion
 
 #pragma region connect to server
 	
-	string serverName = string(SERVER_NAME_HEADER) + string(clientIndex) + string(SERVER_NAME_TAIL);
+	string serverName = string(SERVER_NAME_HEADER) + string(cameraNameString) + string(SERVER_NAME_TAIL);
 	while (client.ConnectToServer(serverName.c_str(), PORT)); // loop until server goes up 
-	cout << "Connected to server #" << clientIndex << " successfully" << endl;
+	cout << "Connected to server #" << cameraNameString << " successfully" << endl;
 
 #pragma endregion
 
 #pragma region obtain metadata from server
 
 	const Networking::ChannelProperties* channelProperties = client.ReceiveMetadataPacket();
-	cout << "client #" << clientIndex << " metadata: " << channelProperties->ToString() << endl;
+	cout << "client #" << cameraNameString << " metadata: " << channelProperties->ToString() << endl;
 	client.AllocateBuffers();
-	cout << "Allocated netwrok buffers for client #" << clientIndex << endl;
+	cout << "Allocated netwrok buffers for client #" << cameraNameString << endl;
 
 #pragma endregion
 
 #pragma region initialize packet processor
 
 	Networking::NetworkPacketProcessor packetProcessor(channelProperties);
-	cout << "Initialized packet processor for client #" << clientIndex << endl;
+	cout << "Initialized packet processor for client #" << cameraNameString << endl;
 
 #pragma endregion
 
 #pragma region main loop
 
-	string windowName = string("Client #") + string(clientIndex);
-	if (DisplayImages && index == 1)
+	#pragma region loop initialization
+
+	string windowName = string("Client #") + string(cameraNameString);
+	if (DisplayImages && threadIndex == 0) // will display only first thread's stream not to clutter the workspace
 	{		
 		namedWindow(windowName); // OpenCV window to show the image stream on screen
 	}
 
-	Timer telemetry(string("Kinect #") + string(clientIndex), FRAMES_BETWEEN_TELEMETRY_MESSAGES);
+	Timer telemetry(string("Kinect #") + string(cameraNameString), FRAMES_BETWEEN_TELEMETRY_MESSAGES);
 
 	Recording::FrameRecorder* frameRecorder = NULL;
-	if (RecordImages) frameRecorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, index);
+	if (RecordImages) frameRecorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, threadIndex);
 
 	Recording::CalibrationPatternRecorder* calibrationRecorder = NULL;
-	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, index, RECORDING_DIRECTORY);
+	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, threadIndex, RECORDING_DIRECTORY);
 
 	unsigned int frameCount = 0;
 	unsigned int savedFrameCount = 0;
 
+	#pragma endregion
+
 	while (1)
 	{			
-		telemetry.IterationStarted();
+		telemetry.IterationStarted(threadIndex);
+		DroppingFrame = false;
 
-		auto packet = client.ReceivePacket(); // after it is received the matrix is stored internally in the client object
+		#pragma region obtain frame
 
-		if (packet.Data.size() == 0)
-		{
-			FirstThreadFinished = true;
-		}
+		Packets[threadIndex] = client.ReceivePacket(); // after it is received, the matrix is stored internally in the client object
+		if (Packets[threadIndex].Data.size() == 0) FirstThreadFinished = true;
 
-		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
+		RecieveBarrier: EnterSynchronizationBarrier(barrier, 0); // entering threads wlil block until all the threads reach this point [0 means no flags]
 
 		if (FirstThreadFinished) break; // as soon as one thread is done, everybody's closing their basta
 										// There's a race condition here: if FirstThreadFinished is false, one thread may quickly finish its iteration,
 										// start the following one, grab an empty frame and write true to FirstThreadFinished. Then, the other thread
 										// will read this value and won't be able to finish its last iteration. What a pitty.
-		frameCount++;
+		
+		#pragma endregion
 
-		auto lastFrame = packetProcessor.ProcessPacket(packet);
+		#pragma region synchronize
+
+		if (cameraCount > 1)
+		{
+			auto timestamp = Packets[threadIndex].Timestamp;
+			long minGap = 0;
+			for (unsigned int i = 0; i < cameraCount; i++)		
+				minGap = min(minGap, timestamp - Packets[i].Timestamp);			
+
+			if (minGap < -SYNCHRONIZATION_THRESHOLD) DroppingFrame = true;
+			
+			EnterSynchronizationBarrier(barrier, 0);
+
+			if (DroppingFrame && minGap < -SYNCHRONIZATION_THRESHOLD)
+			{				
+				cout << "Client #" << cameraNameString << " has dropped a frame" << endl;
+				continue;
+			}
+			else if (DroppingFrame) goto RecieveBarrier;
+		}
+		// once here - all threads have synchronized their frames :-)
+
+	#pragma endregion		
+
+		#pragma region record and/or display frame
+
+		frameCount++;
+		auto lastFrame = packetProcessor.ProcessPacket(Packets[threadIndex]);
 
 		if (RecordImages) frameRecorder->RecordFrame(lastFrame, frameCount);
 
 		if (RecordCalibrationPattern)
 		{
-			PatternFound[index] = calibrationRecorder->DetectCalibrationPattern(lastFrame, frameCount);
+			PatternFound[threadIndex] = calibrationRecorder->DetectCalibrationPattern(lastFrame, frameCount);
 			EnterSynchronizationBarrier(barrier, 0); // this is wasteful in terms of time (even more so when also recording images), but I don't care (only happens when we do calibration)
-			if (PatternFound[index] && (cameraCount == 1 || PatternFound[3 - index]))
-				calibrationRecorder->RecordLastCalibrationPattern(); // '3 - index' is really crappy. This should not be hard-coded for a pair of cameras.
-
+			bool everyoneFound = true;
+			for (unsigned int i = 0; i < cameraCount; i++)
+			{
+				everyoneFound = everyoneFound && PatternFound[i];
+			}
+			if (everyoneFound) 
+				calibrationRecorder->RecordLastCalibrationPattern();
 		}
 
-		if (DisplayImages && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
+		if (DisplayImages && threadIndex == 0) // remove the index == 0 condition if you wish to display the stream for every client
 		{
 			if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
 				lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame;
@@ -211,7 +252,9 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 			waitKey(1);
 		}
 
-		telemetry.IterationEnded(packet.Data.size());
+	#pragma endregion
+
+		telemetry.IterationEnded(Packets[threadIndex].Data.size());
 	}
 
 #pragma endregion
@@ -220,7 +263,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 
 	client.CloseConnection();
 
-	printf("Average bandwidth for Kinect #%s on this session was: %2.1f [Mbps]\n", clientIndex, telemetry.AverageBandwidth());	
+	printf("Average bandwidth for Kinect #%s on this session was: %2.1f [Mbps]\n", cameraNameString, telemetry.AverageBandwidth());	
 
 	if (RecordImages) delete frameRecorder;
 	if (RecordCalibrationPattern) delete calibrationRecorder;
