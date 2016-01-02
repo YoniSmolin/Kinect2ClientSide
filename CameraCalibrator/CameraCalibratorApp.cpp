@@ -9,8 +9,8 @@
 #define NUMBER_OF_CAMERAS 2
 
 #define CALIBRATION_PATTERN_WIDTH  6  // its super-important that those will agree with the widh and height in CalibrationPatternRecorder.cpp. Those constants should be organized in a common header.
-#define CALIBRATION_PATTERN_HEIGHT 8
-#define CALIBRATION_PATTERN_SQUARE_SIZE 2.65f // cm
+#define CALIBRATION_PATTERN_HEIGHT 9
+#define CALIBRATION_PATTERN_SQUARE_SIZE 5.1f // cm
 
 #define IMAGE_WIDTH   1920
 #define IMAGE_HEIGHT  1080
@@ -44,6 +44,8 @@ int main()
 		calibrationCoordinatesImagePlane.push_back(imagePlanePoints);		
 	}
  
+	std::cout << "Using " << numberOfCalibrationFrames << " frames to calibrate the cameras" << std::endl;
+
 	// obtain the object space coordinates of the calibration pattern
 	cv::Size calibrationBoardSize(CALIBRATION_PATTERN_WIDTH, CALIBRATION_PATTERN_HEIGHT);
 	ObjectSpacePoints objectSpacePoints = ComputeCoordinatesOfCalibrationPatternCorners(calibrationBoardSize, CALIBRATION_PATTERN_SQUARE_SIZE);
@@ -80,7 +82,7 @@ int main()
 	#pragma region extrinsic calibration
 
 	flags = CV_CALIB_FIX_INTRINSIC; // the whole point of doing intrinsic calibration first is to obtain an accurate approximation of the intrinsic parameters
-									// -> don't want the extrinsic calibration recompute them
+									// -> don't want the extrinsic calibration to recompute them
 
 	cv::Mat R, T;
 
@@ -117,7 +119,7 @@ int main()
 std::vector<ImagePlanePoints> ReadCameraCalibrationPatterns(int cameraNumber)
 {
 	char cameraName[50];
-	sprintf_s(cameraName, "CalibrationFrames_Camera_%d.xml", cameraNumber + 1);
+	sprintf_s(cameraName, "CalibrationFrames_Camera_%d.xml", cameraNumber);
 	std::string filePath = PathToCalibrationFiles + std::string("/") + cameraName;
 	cv::FileStorage fileStorage(filePath, cv::FileStorage::READ);
 	if (!fileStorage.isOpened())	throw std::runtime_error(std::string("Could not open file ") + filePath.c_str());
