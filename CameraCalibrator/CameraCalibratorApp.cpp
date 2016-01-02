@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <iomanip>
 
 #include <opencv2\highgui\highgui.hpp>
 #include "opencv2/calib3d/calib3d.hpp"
@@ -26,6 +27,9 @@ std::vector<ImagePlanePoints> ReadCameraCalibrationPatterns(int cameraNumber);
 
 // output - the 3d coordinates of the calibration pattern in the local coordinate frame of the calibration board
 ObjectSpacePoints ComputeCoordinatesOfCalibrationPatternCorners(cv::Size calibrationBoardSize, float squareSize);
+
+// copied this from stackoverflow due to lack of time
+void print(cv::Mat mat, int prec);
 
 int main()
 { 
@@ -112,6 +116,15 @@ int main()
 
 	#pragma endregion
 
+	#pragma region print results
+
+	std::cout << "Translation: " << std::endl;
+	print(T, 3);
+	std::cout << "Rotation: " << std::endl;
+	print(R, 3);
+
+	#pragma endregion
+
 	return 0;
 }
 
@@ -151,4 +164,20 @@ ObjectSpacePoints ComputeCoordinatesOfCalibrationPatternCorners(cv::Size calibra
 			corners.push_back(cv::Point3f(j*squareSize, i*squareSize, 0)); // the calibration pattern plane is defined as z=0 for simplicity
 
 	return corners;
+}
+
+void print(cv::Mat mat, int prec)
+{
+	for (int i = 0; i<mat.size().height; i++)
+	{
+		std::cout << "[";
+		for (int j = 0; j<mat.size().width; j++)
+		{
+			std::cout << std::setprecision(prec) << mat.at<double>(i, j);
+			if (j != mat.size().width - 1)
+				std::cout << ", ";
+			else
+				std::cout << "]" << std::endl;
+		}
+	}
 }
