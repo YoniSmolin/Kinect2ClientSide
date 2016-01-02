@@ -11,6 +11,7 @@
 #include <windows.h>  // multithreading
 #include <process.h>  // multithreading
 #include <memory>
+#include <time.h>
 // don't forget to pick the correct multithreading runtime library in the Visual Studio project properties in order to get this code to compile
 
 using namespace std;
@@ -176,7 +177,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 
 		auto packet = client.ReceivePacket(); // after it is received the matrix is stored internally in the client object
 
-		if (packet.size() == 0)
+		if (packet.Data.size() == 0)
 		{
 			FirstThreadFinished = true;
 		}
@@ -210,7 +211,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 			waitKey(1);
 		}
 
-		telemetry.IterationEnded(packet.size());
+		telemetry.IterationEnded(packet.Data.size());
 	}
 
 #pragma endregion

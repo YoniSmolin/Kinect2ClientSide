@@ -38,7 +38,7 @@ namespace Networking
 	cv::Mat NetworkPacketProcessor::ProcessJpegPacket(NetworkPacket packet)
 	{		
 		cv::Mat currentFrameMat(_channelProperties->Height, _channelProperties->Width, _channelProperties->PixelType, _imageData);
-		imdecode(packet, CV_LOAD_IMAGE_ANYCOLOR, &currentFrameMat); // how does openCV know that receivedJpeg contains a compressed Jpeg image ? by its content.
+		imdecode(packet.Data, CV_LOAD_IMAGE_ANYCOLOR, &currentFrameMat); // how does openCV know that receivedJpeg contains a compressed Jpeg image ? by its content.
 
 		return currentFrameMat;
 	}
@@ -46,7 +46,7 @@ namespace Networking
 	cv::Mat NetworkPacketProcessor::ProcessPngPacket(NetworkPacket packet)
 	{
 		cv::Mat currentFrameMat(_channelProperties->Height, _channelProperties->Width, _channelProperties->PixelType, _imageData);
-		imdecode(packet, CV_LOAD_IMAGE_ANYDEPTH, &currentFrameMat); // how does openCV know that receivedPNG contains a compressed PNG image ? by its content.
+		imdecode(packet.Data, CV_LOAD_IMAGE_ANYDEPTH, &currentFrameMat); // how does openCV know that receivedPNG contains a compressed PNG image ? by its content.
 
 		return currentFrameMat;
 	}

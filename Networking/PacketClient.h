@@ -2,12 +2,23 @@
 
 #include "Client.h"
 #include "ChannelProperties.h"
+
 #include <string>
 #include <vector>
 
 namespace Networking
 {
-	typedef std::vector<unsigned char> NetworkPacket;
+	struct Timestamp
+	{
+		long Seconds;
+		long Milliseconds;	
+	};
+
+	struct NetworkPacket
+	{
+		std::vector<unsigned char> Data;
+		Timestamp Timestamp;
+	};
 
 	// manages its own memory
 	class PacketClient : public Client

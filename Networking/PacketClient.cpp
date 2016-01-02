@@ -5,6 +5,9 @@ namespace Networking
 {
 	const unsigned int BitsInByte = 8;
 	const unsigned int BytesInHeader = 3;
+	const unsigned int BytesInTimestampField = 4; // super dangerous - relying on sizeof(time_t) = sizeof(long) = 4 on the JetsonBoard. 
+												  // The solution: the server should actually dictate the size of this field when the connection is
+												  // established. I'm too lazy + have no time to implement that.
 	const unsigned int BytesInMetadata = 1;
 
 	PacketClient::~PacketClient()
@@ -24,8 +27,20 @@ namespace Networking
 
 		NetworkPacket emptyPacket;
 
+		// receive timestamp
+		if (BytesInTimestampField != sizeof(long)) throw std::runtime_error("Expecting " + std::to_string(BytesInTimestampField) + "bytes for seconds & milliseconds fields of the timestamp. Cant put that in a long.");
+		Timestamp timestamp;
+
+		unsigned int totalReceived = waitUntilReceived((char*)&timestamp.Seconds, BytesInTimestampField);
+		if (totalReceived < BytesInTimestampField) return emptyPacket;
+		totalReceived = waitUntilReceived((char*)&timestamp.Milliseconds, BytesInTimestampField);
+		if (totalReceived < BytesInTimestampField) return emptyPacket;
+
+		printf("Current time: %ld.%03ld seconds since the Epoch\n", timestamp.Seconds, timestamp.Milliseconds);
+
+		// receive header
 		uchar header[BytesInHeader];
-		unsigned int totalReceived = waitUntilReceived((char*)header, BytesInHeader);
+		totalReceived = waitUntilReceived((char*)header, BytesInHeader);
 		if (totalReceived < BytesInHeader) // totalReceived will be less than BYTES_IN_HEADER only if server has closed connection
 			return emptyPacket;
 
@@ -36,11 +51,12 @@ namespace Networking
 		if (dataSize > _maximalPacketSize)
 			throw std::runtime_error("Failed to receive packet - data size is too large");
 
+		// receive data
 		totalReceived = waitUntilReceived(_networkBuffer, dataSize);
 		if (totalReceived < dataSize) // totalReceived will be less than BYTES_IN_HEASER only if server has closed connection
 			throw std::runtime_error("Failed to receive packet - data size is smaller than expected");
 
-		NetworkPacket receivedPacket(_networkBuffer, _networkBuffer + dataSize);
+		NetworkPacket receivedPacket{ std::vector<unsigned char>(_networkBuffer, _networkBuffer + dataSize), timestamp };
 
 		return receivedPacket;
 	}
