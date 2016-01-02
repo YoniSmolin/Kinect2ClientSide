@@ -30,7 +30,7 @@ using namespace cv;
 #pragma region Globals
 
 LPSYNCHRONIZATION_BARRIER barrier; // a GLOBAL barrier shared among all the threads
-bool FastestThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
+bool FirstThreadFinished = false;// the first thread thread that finished its work raises this flag which consequently kills all the other threads
 bool RecordImages = false; // a flag to signify whether the incoming stream neet to be recorded (once every FRAMES_BETWEEN_SHOTS)
 bool DisplayImages = false; // a flag to signify whether the incoming strems need to be displayed to screen
 bool RecordCalibrationPattern = false; // a flag to signify whether the calibration pattern needs to be recorded (once every once every FRAMES_BETWEEN_SHOTS)
@@ -171,46 +171,46 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	unsigned int savedFrameCount = 0;
 
 	while (1)
-	{
-		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
-
-		if (FastestThreadFinished) break; // as soon as one thread is done, everybody's closing their bastas			
-
+	{			
 		telemetry.IterationStarted();
 
 		auto packet = client.ReceivePacket(); // after it is received the matrix is stored internally in the client object
-		frameCount++;
 
 		if (packet.size() == 0)
 		{
-			FastestThreadFinished = true;
+			FirstThreadFinished = true;
 		}
-		else
+
+		EnterSynchronizationBarrier(barrier, 0); // threads wlil block here until all the threads reach here [0 means no flags]
+
+		if (FirstThreadFinished) break; // as soon as one thread is done, everybody's closing their basta
+										// There's a race condition here: if FirstThreadFinished is false, one thread may quickly finish its iteration,
+										// start the following one, grab an empty frame and write true to FirstThreadFinished. Then, the other thread
+										// will read this value and won't be able to finish its last iteration. What a pitty.
+		frameCount++;
+
+		auto lastFrame = packetProcessor.ProcessPacket(packet);
+
+		if (RecordImages) frameRecorder->RecordFrame(lastFrame, frameCount);
+
+		if (RecordCalibrationPattern)
 		{
-			auto lastFrame = packetProcessor.ProcessPacket(packet);		
+			PatternFound[index] = calibrationRecorder->DetectCalibrationPattern(lastFrame, frameCount);
+			EnterSynchronizationBarrier(barrier, 0); // this is wasteful in terms of time (even more so when also recording images), but I don't care (only happens when we do calibration)
+			if (PatternFound[index] && (cameraCount == 1 || PatternFound[3 - index]))
+				calibrationRecorder->RecordLastCalibrationPattern(); // '3 - index' is really crappy. This should not be hard-coded for a pair of cameras.
 
-			if (RecordImages) frameRecorder->RecordFrame(lastFrame, frameCount);
-
-			if (RecordCalibrationPattern)
-			{
-				PatternFound[index] = calibrationRecorder->DetectCalibrationPattern(lastFrame, frameCount);
-				if (PatternFound[index])
-				{
-					EnterSynchronizationBarrier(barrier, 0); // this is wasteful in terms of time (even more so when recording images), but I don't care (only happens when we do calibration)
-					if (cameraCount == 1 || PatternFound[3 - index]) calibrationRecorder->RecordLastCalibrationPattern(); // '3 - index' is really crappy. This should not be hard-coded for a pair of cameras.
-				}
-			}
-
-			if (DisplayImages && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
-			{
-				if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
-					lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame;
-				imshow(windowName, lastFrame);
-				waitKey(1);
-			}
-
-			telemetry.IterationEnded(packet.size());
 		}
+
+		if (DisplayImages && index == 1) // remove the index == 1 condition if you wish to display the stream for every client
+		{
+			if (channelProperties->ChannelType == Networking::ChannelType::Depth) // lastFrame contains depth in mm but needs to be scaled for visualizatiuon purposes
+				lastFrame = ((1 << channelProperties->PixelSize * 8) / channelProperties->DepthExpectedMax) * lastFrame;
+			imshow(windowName, lastFrame);
+			waitKey(1);
+		}
+
+		telemetry.IterationEnded(packet.size());
 	}
 
 #pragma endregion
