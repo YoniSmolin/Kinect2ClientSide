@@ -22,15 +22,18 @@ using namespace cv;
 #define SERVER_NAME_TAIL   ".local"
 
 #define RECORDING_DIRECTORY "../Data" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
-#define FRAMES_BETWEEN_SHOTS 75 // frames to wait until the consecutive frame should be saved
+#define FRAMES_BETWEEN_SHOTS 80 // frames to wait until the consecutive frame should be saved
 
 #define FRAMES_BETWEEN_TELEMETRY_MESSAGES 30 // every so many frames, the average FPS and BW will be printed to the command window
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
-#define SYNCHRONIZATION_THRESHOLD 60 // frames with a time gap of less than or equal to SYNCHRONIZATION_THRESHOLD [ms] will be considered synchronized
+#define SYNCHRONIZATION_THRESHOLD 30 // frames with a time gap of less than or equal to SYNCHRONIZATION_THRESHOLD [ms] will be considered synchronized
 
 #define MAX_NUMBER_OF_CAMERAS 4
+
+#define CALIBRATION_PATTERN_WIDTH  6
+#define CALIBRATION_PATTERN_HEIGHT 9
 
 #pragma region Globals
 
@@ -174,7 +177,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	if (RecordImages) frameRecorder = new Recording::FrameRecorder(RECORDING_DIRECTORY, channelProperties, FRAMES_BETWEEN_SHOTS, threadIndex);
 
 	Recording::CalibrationPatternRecorder* calibrationRecorder = NULL;
-	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(FRAMES_BETWEEN_SHOTS, threadIndex, RECORDING_DIRECTORY);
+	if (RecordCalibrationPattern) calibrationRecorder = new Recording::CalibrationPatternRecorder(RECORDING_DIRECTORY, FRAMES_BETWEEN_SHOTS, threadIndex, CALIBRATION_PATTERN_WIDTH, CALIBRATION_PATTERN_HEIGHT);
 
 	unsigned int frameCount = 0;
 	unsigned int savedFrameCount = 0;
@@ -218,7 +221,10 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 				cout << "Client #" << cameraNameString << " has dropped a frame" << endl;
 				continue;
 			}
-			else if (DroppingFrame) goto RecieveBarrier;
+			else if (DroppingFrame)
+			{
+				goto RecieveBarrier;
+			}
 		}
 		// once here - all threads have synchronized their frames :-)
 

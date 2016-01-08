@@ -7,14 +7,14 @@ namespace Recording
 {
 	class CalibrationPatternRecorder : public BaseRecorder
 	{
-		static const cv::Size _boardSize;
+		cv::Size _boardSize;
 
 		std::vector<cv::Point2f> _currentPatternCorners;
 
 		cv::FileStorage _patternCornersFile;
 
 	public:
-		CalibrationPatternRecorder(unsigned int recordingCycle, unsigned int cameraIndex, const std::string& recordingPath);
+		CalibrationPatternRecorder(const std::string& recordingPath, unsigned int recordingCycle, unsigned int cameraIndex, unsigned int boardWidt, unsigned int boradHeight);
 		~CalibrationPatternRecorder();
 
 		bool DetectCalibrationPattern(cv::Mat frame, unsigned int frameNumber);

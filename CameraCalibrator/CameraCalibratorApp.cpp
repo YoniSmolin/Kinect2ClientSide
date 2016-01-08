@@ -1,26 +1,37 @@
+// This utility is poorly written - too long names + needs a object-oriented treatment to be applicable to multiple cameras
+
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <iomanip>
 
 #include <opencv2\highgui\highgui.hpp>
-#include "opencv2/calib3d/calib3d.hpp"
+#include <opencv2\calib3d\calib3d.hpp>
 
 // all of the below defines should probably turn into some sort of input argumnets in the future
 #define NUMBER_OF_CAMERAS 2
 
 #define CALIBRATION_PATTERN_WIDTH  6  // its super-important that those will agree with the widh and height in CalibrationPatternRecorder.cpp. Those constants should be organized in a common header.
 #define CALIBRATION_PATTERN_HEIGHT 9
-#define CALIBRATION_PATTERN_SQUARE_SIZE 5.1f // cm
+#define CALIBRATION_PATTERN_SQUARE_SIZE 50.5f // mm   /// 25 for the small board, 50.5 for the board from work
 
-#define IMAGE_WIDTH   1920
-#define IMAGE_HEIGHT  1080
+#define IMAGE_WIDTH   512 // 1920
+#define IMAGE_HEIGHT  424 // 1080
 
 typedef std::vector<cv::Point2f> ImagePlanePoints;
 typedef std::vector<cv::Point3f> ObjectSpacePoints;
 
+#pragma region globals
+
 const std::string PathToCalibrationFiles("../Data/CalibrationFiles");
-const std::string OutputFileName("../Data/CalibrationResult.xml");
+const std::string OutputFileName("../Data/CalibrationResult.txt");
+
+// another piece of bad code - the intrinsics should be obtained and saved by the client
+cv::Mat firstCamCalibration = (cv::Mat_<float>(3, 3) << 365.52, 0, 256.919, 0, 365.52, 207.111, 0, 0, 1);
+cv::Mat secondCamCalibration = (cv::Mat_<float>(3, 3) << 365.306, 0, 254.963, 0, 365.306, 208.328, 0, 0, 1);
+
+#pragma endregion
 
 // output - an array of calibration frames, each frame is represented via the image coordinates of the detected calibration pattern points
 std::vector<ImagePlanePoints> ReadCameraCalibrationPatterns(int cameraNumber);
@@ -58,11 +69,13 @@ int main()
 	cv::Size imageSize(IMAGE_WIDTH, IMAGE_HEIGHT);
 
 	std::vector<cv::Mat> distortionCoeffs(NUMBER_OF_CAMERAS, cv::Mat::zeros(5, 1, CV_64F));
-	int flags = CV_CALIB_ZERO_TANGENT_DIST | CV_CALIB_FIX_K3;
+	int flags = CV_CALIB_ZERO_TANGENT_DIST | CV_CALIB_FIX_K3 | CV_CALIB_USE_INTRINSIC_GUESS;
 	// the tangential distortion is usually small, so we fix it at 0 (has a bad affect on numeric stability of the output)
 	// same holds true for K3
 
 	std::vector<cv::Mat> cameraMatrix(NUMBER_OF_CAMERAS);
+	cameraMatrix[0] = firstCamCalibration;
+	cameraMatrix[1] = secondCamCalibration;
 	std::vector<cv::Mat> dummy1, dummy2;
 	
 	#pragma endregion
@@ -100,28 +113,16 @@ int main()
 
 	#pragma region write result to file
 
-	cv::FileStorage fileStorage;
-	fileStorage.open(OutputFileName, cv::FileStorage::WRITE);
-
-	fileStorage << "cameraMatrix1" << cameraMatrix[0];
-	fileStorage << "cameraMatrix2" << cameraMatrix[1];
-
-	fileStorage << "distortionCoeffs1" << distortionCoeffs[0];
-	fileStorage << "distortionCoeffs2" << distortionCoeffs[1];
-
-	fileStorage << "Rotation" << R;
-	fileStorage << "Translation" << T;
-
-	fileStorage.release();
+	std::ofstream outputFile(OutputFileName.c_str());
+	outputFile << "Translation: " << cv::format(T, cv::Formatter::FMT_MATLAB) << std::endl;
+	outputFile << "Rotation: " << cv::format(R, cv::Formatter::FMT_MATLAB) << std::endl;
 
 	#pragma endregion
 
 	#pragma region print results
 
-	std::cout << "Translation: " << std::endl;
-	print(T, 3);
-	std::cout << "Rotation: " << std::endl;
-	print(R, 3);
+	std::cout << "Translation: " << cv::format(T, cv::Formatter::FMT_MATLAB)  << std::endl;
+	std::cout << "Rotation: " << cv::format(R, cv::Formatter::FMT_MATLAB) << std::endl;
 
 	#pragma endregion
 
@@ -164,20 +165,4 @@ ObjectSpacePoints ComputeCoordinatesOfCalibrationPatternCorners(cv::Size calibra
 			corners.push_back(cv::Point3f(j*squareSize, i*squareSize, 0)); // the calibration pattern plane is defined as z=0 for simplicity
 
 	return corners;
-}
-
-void print(cv::Mat mat, int prec)
-{
-	for (int i = 0; i<mat.size().height; i++)
-	{
-		std::cout << "[";
-		for (int j = 0; j<mat.size().width; j++)
-		{
-			std::cout << std::setprecision(prec) << mat.at<double>(i, j);
-			if (j != mat.size().width - 1)
-				std::cout << ", ";
-			else
-				std::cout << "]" << std::endl;
-		}
-	}
 }

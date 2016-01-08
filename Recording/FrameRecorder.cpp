@@ -26,9 +26,9 @@ namespace Recording
 			sprintf_s(savedFrameCountString, "%02d", _savedFramesCount); // assuming savedFrameCount < 100, 2 digits should suffice
 			std::string fileName(_recordingPath + std::string("/") + std::string(savedFrameCountString) + _imageFileType);
 			cv::imwrite(fileName, frame);			
-			std::cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << _cameraIndex << ": Taking a shot ("  << fileName << ") ~~~~~~~~~~~~~~~~~~~~" << std::endl;
+			std::cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << _cameraIndex + 1 << ": Taking a shot ("  << fileName << ") ~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
-			if (_cameraIndex == 1)
+			if (_cameraIndex == 0)
 				PlaySound(CameraShutterAudioFile.c_str(), NULL, SND_FILENAME | SND_ASYNC); // SND_ASYNC is important, otherwise this call will block
 
 			_savedFramesCount++;

@@ -6,12 +6,10 @@
 
 namespace Recording
 {
-	const cv::Size CalibrationPatternRecorder::_boardSize = cv::Size(6, 9); // perhaps this shouldn't be hard coded
-
 	const std::string PatternFilesSubDirectory("CalibrationFiles");
 
-	CalibrationPatternRecorder::CalibrationPatternRecorder(unsigned int recordingCycle, unsigned int cameraIndex, const std::string& recordingPath) :
-		BaseRecorder(recordingPath, recordingCycle, cameraIndex)
+	CalibrationPatternRecorder::CalibrationPatternRecorder(const std::string& recordingPath, unsigned int recordingCycle, unsigned int cameraIndex, unsigned int boardWidt, unsigned int boradHeight) :
+		BaseRecorder(recordingPath, recordingCycle, cameraIndex), _boardSize(cv::Size(boardWidt, boradHeight))
 	{
 		_recordingPath = _recordingPath + std::string("/") + PatternFilesSubDirectory;
 		CreateDirectoryA(_recordingPath.c_str(), NULL);
@@ -37,9 +35,9 @@ namespace Recording
 
 		_patternCornersFile << "Frame_" + std::string(savedFrameCountString) << _currentPatternCorners;
 
-		std::cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << _cameraIndex << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << std::endl;
+		std::cout << "~~~~~~~~~~~~~~~~~~~~ Camera " << _cameraIndex + 1 << ": Taking a shot ~~~~~~~~~~~~~~~~~~~~" << std::endl;
 
-		if (_cameraIndex == 1) // don't want to waste resources on playing sound files in all threads
+		if (_cameraIndex == 0) // don't want to waste resources on playing sound files in all threads
 			PlaySound(CameraShutterAudioFile.c_str(), NULL, SND_FILENAME | SND_ASYNC); // SND_ASYNC is important, otherwise this call will block
 
 		_savedFramesCount++;
