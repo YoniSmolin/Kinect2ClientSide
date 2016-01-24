@@ -10,11 +10,11 @@ namespace Networking
 {
 	struct Timestamp
 	{
-		long Seconds;
-		long Milliseconds;
+		unsigned long Seconds;
+		unsigned long Milliseconds;
 
 		// output: in milliseconds
-		long operator-(Timestamp rhs) {	return 1000 * (Seconds - rhs.Seconds) + Milliseconds - rhs.Milliseconds; }
+		long operator-(Timestamp rhs) {	return 1000 * ((long)Seconds - (long)rhs.Seconds) + (long)Milliseconds - (long)rhs.Milliseconds; }
 	};
 
 	struct NetworkPacket

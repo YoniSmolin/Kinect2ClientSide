@@ -28,7 +28,7 @@ namespace Networking
 		NetworkPacket emptyPacket;
 
 		// receive timestamp
-		if (BytesInTimestampField != sizeof(long)) throw std::runtime_error("Expecting " + std::to_string(BytesInTimestampField) + "bytes for seconds & milliseconds fields of the timestamp. Cant put that in a long.");
+		if (BytesInTimestampField != sizeof(unsigned long)) throw std::runtime_error("Expecting " + std::to_string(BytesInTimestampField) + "bytes for seconds & milliseconds fields of the timestamp. Cant put that in a long.");
 		Timestamp timestamp;
 
 		unsigned int totalReceived = waitUntilReceived((char*)&timestamp.Seconds, BytesInTimestampField);

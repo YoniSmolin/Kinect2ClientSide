@@ -22,9 +22,9 @@ using namespace cv;
 #define SERVER_NAME_TAIL   ".local"
 
 #define RECORDING_DIRECTORY "../Data" // path to the directory where the recordings from different Kinects will be stored (relative to solution .sln file)
-#define FRAMES_BETWEEN_SHOTS 80 // frames to wait until the consecutive frame should be saved
+#define FRAMES_BETWEEN_SHOTS 60 // frames to wait until the consecutive frame should be saved
 
-#define FRAMES_BETWEEN_TELEMETRY_MESSAGES 30 // every so many frames, the average FPS and BW will be printed to the command window
+#define FRAMES_BETWEEN_TELEMETRY_MESSAGES 60 // every so many frames, the average FPS and BW will be printed to the command window
 
 #define THREAD_BARRIER_SPIN_COUNT -1 // the number of times a thread will attempt to check the barrier state (a.k.a. - spin) before it blocks (-1 corresponds to a system defalut value of 2k)
 
@@ -32,7 +32,7 @@ using namespace cv;
 
 #define MAX_NUMBER_OF_CAMERAS 4
 
-#define CALIBRATION_PATTERN_WIDTH  6
+#define CALIBRATION_PATTERN_WIDTH  7
 #define CALIBRATION_PATTERN_HEIGHT 9
 
 #pragma region Globals
@@ -230,10 +230,18 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 
 	#pragma endregion		
 
-		#pragma region record and/or display frame
+		telemetry.FrameDecomptressionStarted();
+		 
+		#pragma region process packet		
 
 		frameCount++;
 		auto lastFrame = packetProcessor.ProcessPacket(Packets[threadIndex]);
+
+		#pragma endregion
+
+		telemetry.FrameDecompressionEnded();
+
+		#pragma region record and/or display frame
 
 		if (RecordImages) frameRecorder->RecordFrame(lastFrame, frameCount);
 
@@ -270,6 +278,7 @@ unsigned __stdcall KinectClientThreadFunction(void* kinectIndex)
 	client.CloseConnection();
 
 	printf("Average bandwidth for Kinect #%s on this session was: %2.1f [Mbps]\n", cameraNameString, telemetry.AverageBandwidth());	
+	printf("Average frame rate for Kinect #%s was: %2.1f [fps]\n", cameraNameString, telemetry.AverageFrameRate());
 
 	if (RecordImages) delete frameRecorder;
 	if (RecordCalibrationPattern) delete calibrationRecorder;

@@ -5,26 +5,48 @@
 #include <stdio.h>
 #include <iostream>
 
-Timer::Timer(string name, int windowSize) : _sampleCounter(0), _accumulatedBytes(0), _name(name), _windowSize(windowSize), _windowsCounter(0), _sessionBandwidthSum(0), _start({0}), _end({0}), _firstIterationStart({0}), _insideIteration(false)
+Timer::Timer(string name, int windowSize) : _frameCounter(0), _accumulatedBytes(0), _name(name), _windowSize(windowSize), _frameWindowCounter(0),
+											_sessionBandwidthSum(0), _start({0}), _end({0}), _insideIteration(false), _totalCompressionTime(0),
+											_compressoinStart({0}), _sessionDurationSum(0)
 {
 	QueryPerformanceFrequency(&_frequency);
+	_decompressionLatenciesFile.open("../Data/DecompressionLatencies.log", ios::out);
+	_decompressionLatenciesFile << "[";
+}
+
+Timer::~Timer()
+{
+	_decompressionLatenciesFile << "];";
+	_decompressionLatenciesFile.close();
 }
 
 void Timer::IterationStarted(int index)
 {
 	if (!_insideIteration)
 	{
-		if (_sampleCounter == 0)
+		if (_frameCounter == 0)
 		{
 			QueryPerformanceCounter(&_start); // first sample of the curernt window
-			if (_windowsCounter == 0)
-			{ // first sample of first samples windows
-				QueryPerformanceCounter(&_firstIterationStart);
-			}
 		}
 
-		_sampleCounter++;
+		_frameCounter++;
 		_insideIteration = true;
+	}
+}
+
+void Timer::FrameDecomptressionStarted()
+{
+	if (_insideIteration) QueryPerformanceCounter(&_compressoinStart);
+}
+
+void Timer::FrameDecompressionEnded()
+{
+	if (_insideIteration)
+	{
+		QueryPerformanceCounter(&_end);
+		float decompressionLatency = (float)(_end.QuadPart - _compressoinStart.QuadPart) / _frequency.QuadPart;
+		_decompressionLatenciesFile << 1000 * decompressionLatency << ";" << endl;
+		_totalCompressionTime += decompressionLatency;
 	}
 }
 
@@ -32,9 +54,9 @@ void Timer::IterationEnded(size_t numBytesMoved)
 {
 	if (_insideIteration)
 	{
-		_accumulatedBytes += numBytesMoved;
+		_accumulatedBytes += numBytesMoved;		
 
-		if (_sampleCounter == _windowSize)
+		if (_frameCounter == _windowSize)
 		{
 			QueryPerformanceCounter(&_end);
 			float accumulatedTime = (float)(_end.QuadPart - _start.QuadPart);
@@ -43,26 +65,34 @@ void Timer::IterationEnded(size_t numBytesMoved)
 			printf("%s : Rate - %2.1f [Hz], Cycle - %2.1f [mSec], Bandwidth - %2.1f [Mbps]\n", _name.c_str(), 1 / cycle, 1000 * cycle, bandwidth);
 
 			_sessionBandwidthSum += bandwidth;
+			_sessionDurationSum += accumulatedTime;
 			_accumulatedBytes = 0;
-			_sampleCounter = 0;
-			_windowsCounter++;
+			_frameCounter = 0;
+			_frameWindowCounter++;
 		}
 
 		_insideIteration = false;
 	}
 }
 
-float Timer::TimeSinceFirstIteration()
-{
-	LARGE_INTEGER currentTime;
-	QueryPerformanceCounter(&currentTime);
-	return (float)(currentTime.QuadPart - _firstIterationStart.QuadPart) / _frequency.QuadPart;
-}
-
 float Timer::AverageBandwidth()
 {
-	if (_windowsCounter == 0)
+	if (_frameWindowCounter == 0)
 		return 0;
 
-	return _sessionBandwidthSum / _windowsCounter;
+	return _sessionBandwidthSum / _frameWindowCounter;
+}
+
+float Timer::AverageDecompressionLatency()
+{
+	return  1000 * _totalCompressionTime /  (_windowSize * _frameWindowCounter + _frameCounter); // 1000 factor: s -> ms
+}
+
+float Timer::AverageFrameRate()
+{
+	if (_frameWindowCounter > 0)
+		return (_windowSize * _frameWindowCounter) / (_sessionDurationSum / _frequency.QuadPart);
+
+	QueryPerformanceCounter(&_end); // just in case we don't make it up to a full window
+	return (float)_frameCounter / ((float)(_end.QuadPart - _start.QuadPart) / _frequency.QuadPart);
 }
